@@ -27,8 +27,12 @@ npm run dev
 - Pull Request verso `main`
 - CI obbligatoria (lint + test + build, se presenti)
 
-## Audit fase 2 (dopo import codice 0v)
-- Allineamento package manager (`npm`/`pnpm`)
-- Allineamento stack (`Next.js`/`Vite`/altro)
-- Validazione env runtime (chiavi obbligatorie)
-- Hardening pipeline di pubblicazione social
+## CI
+Il workflow `.github/workflows/ci.yml` rileva automaticamente il package manager (`npm`/`pnpm`/`yarn`) dal lockfile presente ed esegue lint/test/build solo se gli script corrispondenti esistono in `package.json`. Finché non è presente un `package.json`, i job di install/lint/test/build vengono saltati.
+
+## Audit fase 2 (dopo import codice reale)
+Stato attuale: repository senza codice applicativo (nessun `package.json`/lockfile/framework). Al primo import del codice reale, allineare:
+- Package manager effettivo (`npm`/`pnpm`/`yarn`) e relativo lockfile
+- Framework (`Next.js`/`Vite`/altro) e script `lint`/`test`/`build`
+- Validazione env runtime (vedi `src/config/env.js`, chiavi obbligatorie)
+- Hardening pipeline di pubblicazione social (token solo da env, log senza dati sensibili, retry/backoff)

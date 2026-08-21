@@ -1,38 +1,72 @@
 # Content Cockpit
 
-Content Creator per social media manager: genera immagini/video con agente Hermes o LLM integrato e pubblica sui social.
+Content creator per social media manager: genera contenuti e immagini con l'agente Hermes (Vercel AI Gateway + fal.ai) e li prepara per la pubblicazione sui social.
 
-## Requisiti
-- Node.js 20+
-- npm o pnpm
-- account provider LLM/media/social
+## Stack
 
-## Setup rapido
-```bash
-git clone https://github.com/Bonanton/Content-Cockpit.git
-cd Content-Cockpit
-cp .env.example .env.local
-# compila le variabili
-npm install
-npm run dev
-```
+- **Framework**: Next.js 16 (App Router) + React 19 + TypeScript
+- - **UI**: Tailwind CSS 4, shadcn/ui (stile `base-nova`), lucide-react
+  - - **Auth**: better-auth (email/password)
+    - - **Database**: PostgreSQL via Drizzle ORM
+      - - **AI**: Vercel AI Gateway (testo) + fal.ai `flux/schnell` (immagini)
+        - - **Package manager**: **pnpm** (obbligatorio, il repo ha `pnpm-lock.yaml`, non usare `npm install`)
+         
+          - ## Setup locale
+         
+          - ```bash
+            git clone https://github.com/Bonanton/Content-Cockpit.git
+            cd Content-Cockpit
+            cp .env.example .env.local
+            # compila le variabili in .env.local (vedi sotto)
+            pnpm install
+            pnpm db:generate
+            pnpm db:push
+            pnpm dev
+            ```
 
-## Sicurezza
-- Non committare mai file `.env*` reali
-- Mantieni solo `.env.example` nel repository
-- Ruota immediatamente le chiavi in caso di leak
+            ## Variabili d'ambiente
 
-## Workflow consigliato
-- Branch feature: `feature/<nome>`
-- Pull Request verso `main`
-- CI obbligatoria (lint + test + build, se presenti)
+            Vedi `.env.example`. Riepilogo:
 
-## CI
-Il workflow `.github/workflows/ci.yml` rileva automaticamente il package manager (`npm`/`pnpm`/`yarn`) dal lockfile presente ed esegue lint/test/build solo se gli script corrispondenti esistono in `package.json`. Finché non è presente un `package.json`, i job di install/lint/test/build vengono saltati.
+            | Variabile | Obbligatoria | Note |
+            |---|---|---|
+            | `DATABASE_URL` | Si | Postgres (Vercel Postgres, Neon, Supabase, ...) |
+            | `AI_GATEWAY_API_KEY` | Si | Genera i testi (agente Hermes) |
+            | `FAL_KEY` | Si | Genera le immagini |
+            | `BETTER_AUTH_URL` | No | Dedotta automaticamente in produzione da `VERCEL_URL` |
 
-## Audit fase 2 (dopo import codice reale)
-Stato attuale: repository senza codice applicativo (nessun `package.json`/lockfile/framework). Al primo import del codice reale, allineare:
-- Package manager effettivo (`npm`/`pnpm`/`yarn`) e relativo lockfile
-- Framework (`Next.js`/`Vite`/altro) e script `lint`/`test`/`build`
-- Validazione env runtime (vedi `src/config/env.js`, chiavi obbligatorie)
-- Hardening pipeline di pubblicazione social (token solo da env, log senza dati sensibili, retry/backoff)
+            Le stesse variabili vanno impostate anche in Vercel, Project Settings, Environment Variables, altrimenti il deploy in produzione non genera contenuti ne' fa login.
+
+            ## Database
+
+            Lo schema e' in `lib/db/schema.ts`. Genera la prima migrazione con `pnpm db:generate` (non serve un database reale collegato per generarla, solo per applicarla).
+
+            - `pnpm db:generate` - rigenera le migrazioni dopo una modifica allo schema
+            - - `pnpm db:push` - applica lo schema direttamente al database (comodo in sviluppo)
+              - - `pnpm db:migrate` - applica le migrazioni versionate (da preferire in produzione)
+               
+                - ## Sicurezza
+               
+                - Le API route (`/api/generate-content`, `/api/generate-image`) richiedono una sessione autenticata (better-auth) e applicano un rate limit per utente (`lib/rate-limit.ts`, 8 richieste/minuto per istanza). Il rate limit e' in-memory: per un limite realmente condiviso tra tutte le istanze serverless su Vercel, sostituirlo con Upstash Ratelimit (https://github.com/upstash/ratelimit).
+               
+                - Non committare mai file `.env*` con chiavi reali: sono gia' esclusi da `.gitignore`. Ruota immediatamente le chiavi in caso di perdita accidentale.
+               
+                - ## Flusso di lavoro consigliato
+               
+                - 1. Branch per feature: `feature/<nome>`
+                  2. 2. Pull Request verso `main`
+                     3. 3. CI obbligatoria (lint + typecheck + build), vedi `.github/workflows/ci.yml`
+                        4. 4. Merge dopo review
+                          
+                           5. ## Stato dell'audit fase 2
+                          
+                           6. - [x] Codice v0 importato su `main`
+                              - [ ] - [x] Autenticazione + rate limit sulle API route
+                              - [ ] - [x] `.env.example` allineato alle variabili realmente usate nel codice
+                              - [ ] - [x] `next.config.mjs`: rimosso `ignoreBuildErrors` dopo aver verificato che il typecheck e' pulito
+                              - [ ] - [x] CI (lint + typecheck + build) su ogni PR verso `main`
+                              - [ ] - [ ] Migrazione Drizzle iniziale generata (`pnpm db:generate`) e committata
+                              - [ ] - [ ] Database di produzione collegato (`DATABASE_URL` reale su Vercel), da fare manualmente
+                              - [ ] - [ ] Chiavi reali (`AI_GATEWAY_API_KEY`, `FAL_KEY`) impostate su Vercel, da fare manualmente
+                              - [ ] - [ ] Test automatici (nessuno presente ancora)
+                              - [ ] 

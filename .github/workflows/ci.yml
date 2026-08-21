@@ -1,92 +1,38 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Detect package manager
-        id: detect
-        run: |
-          if [ -f pnpm-lock.yaml ]; then
-            echo "manager=pnpm" >> "$GITHUB_OUTPUT"
-          elif [ -f yarn.lock ]; then
-            echo "manager=yarn" >> "$GITHUB_OUTPUT"
-          else
-            echo "manager=npm" >> "$GITHUB_OUTPUT"
-          fi
-          if [ -f package.json ]; then
-            echo "has_package_json=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_package_json=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup pnpm
-        if: steps.detect.outputs.manager == 'pnpm'
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v4
         with:
-          node-version: 20
-          cache: ${{ steps.detect.outputs.has_package_json == 'true' && steps.detect.outputs.manager || '' }}
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
-        if: steps.detect.outputs.has_package_json == 'true'
-        run: |
-          case "${{ steps.detect.outputs.manager }}" in
-            pnpm) pnpm install --frozen-lockfile ;;
-            yarn) yarn install --frozen-lockfile ;;
-            *) npm ci ;;
-          esac
+        run: pnpm install --no-frozen-lockfile
 
       - name: Lint
-        if: steps.detect.outputs.has_package_json == 'true'
-        run: |
-          if node -e "process.exit(require('./package.json').scripts?.lint ? 0 : 1)"; then
-            case "${{ steps.detect.outputs.manager }}" in
-              pnpm) pnpm run lint ;;
-              yarn) yarn run lint ;;
-              *) npm run lint ;;
-            esac
-          else
-            echo "Script 'lint' non presente, salto."
-          fi
+        run: pnpm run lint
 
-      - name: Test
-        if: steps.detect.outputs.has_package_json == 'true'
-        run: |
-          if node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
-            case "${{ steps.detect.outputs.manager }}" in
-              pnpm) pnpm run test ;;
-              yarn) yarn run test ;;
-              *) npm run test ;;
-            esac
-          else
-            echo "Script 'test' non presente, salto."
-          fi
+      - name: Typecheck
+        run: pnpm run typecheck
 
       - name: Build
-        if: steps.detect.outputs.has_package_json == 'true'
-        run: |
-          if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then
-            case "${{ steps.detect.outputs.manager }}" in
-              pnpm) pnpm run build ;;
-              yarn) yarn run build ;;
-              *) npm run build ;;
-            esac
-          else
-            echo "Script 'build' non presente, salto."
-          fi
-
-      - name: No package.json found
-        if: steps.detect.outputs.has_package_json == 'false'
-        run: echo "Nessun package.json presente: step di install/lint/test/build saltati."
+        run: pnpm run build
+        env:
+          DATABASE_URL: postgres://ci:ci@localhost:5432/ci
+          AI_GATEWAY_API_KEY: ci-placeholder
+          FAL_KEY: ci-placeholder
